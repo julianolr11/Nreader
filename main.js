@@ -141,7 +141,7 @@ ipcMain.handle('library:save', async (event, bookData) => {
     fileName,
     originalPath: filePath,
     title: title || path.basename(filePath),
-    category: category || 'Sem categoria',
+    category: category || null,
     coverImage: coverImage || null,
     addedAt: new Date().toISOString(),
     extension: ext,

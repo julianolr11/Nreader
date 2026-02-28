@@ -19,19 +19,138 @@ if (!Promise.withResolvers) {
 // Use local worker from node_modules
 GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js'
 
+// Traduções
+const translations = {
+  pt: {
+    backToHome: '← Voltar ao início',
+    viewLibrary: '📚 Ver estante',
+    addBook: 'Adicionar livro',
+    opening: 'Abrindo...',
+    dragOrClick: 'Arraste ou clique',
+    theme: 'Tema',
+    light: 'Claro',
+    dark: 'Escuro',
+    font: 'Fonte',
+    recentBooks: '📖 Últimos Lidos',
+    settings: '⚙️ Configurações',
+    myLibrary: 'Minha Estante',
+    searchPlaceholder: 'Buscar por título ou categoria...',
+    sortByCategory: 'Ordenar por Categoria',
+    sortAlphabetical: 'Ordenar Alfabética',
+    sortByReading: 'Ordenar por Leitura',
+    noBookFound: 'Nenhum livro encontrado',
+    noBookInLibrary: 'Nenhum livro na estante ainda',
+    noCategory: 'Sem Categoria',
+    addToLibrary: 'Adicionar à Estante',
+    file: 'Arquivo',
+    title: 'Título',
+    category: 'Categoria',
+    selectCategory: 'Selecione...',
+    addNewCategory: '+ Adicionar nova',
+    categoryName: 'Nome da categoria',
+    bookName: 'Nome do livro',
+    save: 'Salvar',
+    cancel: 'Cancelar',
+    continueReading: 'Continuar Leitura',
+    readFromStart: 'Ler do Início',
+    close: 'Fechar',
+    readingProgress: 'Progresso de Leitura',
+    rating: 'Avaliação',
+    previous: 'Anterior',
+    next: 'Próxima',
+    rateReading: 'Avalie essa leitura:',
+    loadingFile: 'Carregando arquivo...',
+    dragBookHere: 'Arraste para cá seu livro',
+    supportedFormats: 'Formatos aceitos: TXT, MD, PDF',
+    settingsTitle: '⚙️ Configurações',
+    interfaceLanguage: 'Idioma da Interface',
+    portuguese: 'Português',
+    english: 'English',
+    saveChanges: 'Salvar Alterações',
+    completed: '% concluído',
+    deleteCategory: 'Deseja excluir essa categoria?',
+    yes: 'Sim',
+    no: 'Não'
+  },
+  en: {
+    backToHome: '← Back to home',
+    viewLibrary: '📚 View library',
+    addBook: 'Add book',
+    opening: 'Opening...',
+    dragOrClick: 'Drag or click',
+    theme: 'Theme',
+    light: 'Light',
+    dark: 'Dark',
+    font: 'Font',
+    recentBooks: '📖 Recent Books',
+    settings: '⚙️ Settings',
+    myLibrary: 'My Library',
+    searchPlaceholder: 'Search by title or category...',
+    sortByCategory: 'Sort by Category',
+    sortAlphabetical: 'Sort Alphabetically',
+    sortByReading: 'Sort by Reading',
+    noBookFound: 'No book found',
+    noBookInLibrary: 'No books in library yet',
+    noCategory: 'No Category',
+    addToLibrary: 'Add to Library',
+    file: 'File',
+    title: 'Title',
+    category: 'Category',
+    selectCategory: 'Select...',
+    addNewCategory: '+ Add new',
+    categoryName: 'Category name',
+    bookName: 'Book name',
+    save: 'Save',
+    cancel: 'Cancel',
+    continueReading: 'Continue Reading',
+    readFromStart: 'Read from Start',
+    close: 'Close',
+    readingProgress: 'Reading Progress',
+    rating: 'Rating',
+    previous: 'Previous',
+    next: 'Next',
+    rateReading: 'Rate this reading:',
+    loadingFile: 'Loading file...',
+    dragBookHere: 'Drag your book here',
+    supportedFormats: 'Supported formats: TXT, MD, PDF',
+    settingsTitle: '⚙️ Settings',
+    interfaceLanguage: 'Interface Language',
+    portuguese: 'Português',
+    english: 'English',
+    saveChanges: 'Save Changes',
+    completed: '% completed',
+    deleteCategory: 'Do you want to delete this category?',
+    yes: 'Yes',
+    no: 'No'
+  }
+}
+
 const STORAGE_KEY = 'nreader.v1.state'
 const CATEGORIES_STORAGE_KEY = 'nreader.v1.categories'
-const DEFAULT_CATEGORIES = [
-  'Ficção',
-  'Não-ficção',
-  'Técnico',
-  'Biografia',
-  'Romance',
-  'Fantasia',
-  'Autoajuda',
-  'História',
-  'Ciência'
-]
+const DEFAULT_CATEGORIES = {
+  pt: [
+    'Ficção',
+    'Não-ficção',
+    'Técnico',
+    'Biografia',
+    'Romance',
+    'Fantasia',
+    'Autoajuda',
+    'História',
+    'Ciência'
+  ],
+  en: [
+    'Fiction',
+    'Non-fiction',
+    'Technical',
+    'Biography',
+    'Romance',
+    'Fantasy',
+    'Self-help',
+    'History',
+    'Science'
+  ]
+}
 const VIEW_TRANSITION_DURATION = 220
 
 const loadState = () => {
@@ -215,8 +334,43 @@ function StarRating({ value, onChange }) {
   )
 }
 
+// Componente Modal de Configurações
+function SettingsModal({ isOpen, onClose, language, onLanguageChange }) {
+  const t = translations[language] || translations.pt
+  
+  if (!isOpen) return null
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="settings-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="settings-header">
+          <h2>{t.settingsTitle}</h2>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+        
+        <div className="settings-content">
+          <div className="settings-section">
+            <label>{t.interfaceLanguage}</label>
+            <select value={language} onChange={(e) => onLanguageChange(e.target.value)} className="settings-select">
+              <option value="pt">{t.portuguese}</option>
+              <option value="en">{t.english}</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="settings-footer">
+          <button onClick={onClose} className="action-btn primary">
+            {t.close}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // Componente Modal
-function BookModal({ isOpen, onClose, onSave, initialData, categories = [], onAddCategory = () => {} }) {
+function BookModal({ isOpen, onClose, onSave, initialData, categories = [], onAddCategory = () => {}, language = 'pt' }) {
+  const t = translations[language] || translations.pt
   const [title, setTitle] = useState('')
   const [category, setCategory] = useState('')
   const [customCategory, setCustomCategory] = useState('')
@@ -285,43 +439,43 @@ function BookModal({ isOpen, onClose, onSave, initialData, categories = [], onAd
           {/* Direita - Informações */}
           <div className="modal-right">
             <div className="book-info">
-              <h2 className="add-book-title">Adicionar à Estante</h2>
+              <h2 className="add-book-title">{t.addToLibrary}</h2>
 
               <div className="book-field">
-                <label>Arquivo</label>
+                <label>{t.file}</label>
                 <div className="field-value file-name">{initialData?.fileName}</div>
               </div>
 
               <div className="book-field">
-                <label>Título</label>
+                <label>{t.title}</label>
                 <input
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Nome do livro"
+                  placeholder={t.bookName}
                   className="book-input"
                 />
               </div>
 
               <div className="book-field">
-                <label>Categoria</label>
+                <label>{t.category}</label>
                 <select
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
                   className="book-select"
                 >
-                  <option value="">Selecione...</option>
+                  <option value="">{t.selectCategory}</option>
                   {categories.map(cat => (
                     <option key={cat} value={cat}>{cat}</option>
                   ))}
-                  <option value="custom">+ Adicionar nova</option>
+                  <option value="custom">{t.addNewCategory}</option>
                 </select>
                 {category === 'custom' && (
                   <input
                     type="text"
                     value={customCategory}
                     onChange={(e) => setCustomCategory(e.target.value)}
-                    placeholder="Nome da categoria"
+                    placeholder={t.categoryName}
                     className="book-input"
                   />
                 )}
@@ -330,10 +484,10 @@ function BookModal({ isOpen, onClose, onSave, initialData, categories = [], onAd
 
             <div className="modal-actions">
               <button onClick={handleSave} className="action-btn primary">
-                Salvar
+                {t.save}
               </button>
               <button onClick={onClose} className="action-btn secondary">
-                Cancelar
+                {t.cancel}
               </button>
             </div>
           </div>
@@ -344,10 +498,12 @@ function BookModal({ isOpen, onClose, onSave, initialData, categories = [], onAd
 }
 
 // Componente de Modal de Preview do Livro
-function BookPreviewModal({ book, recentBooks = [], onClose, onContinueReading, onRefresh, categories = [] }) {
+function BookPreviewModal({ book, recentBooks = [], onClose, onContinueReading, onRefresh, categories = [], onAddCategory, language = 'pt' }) {
+  const t = translations[language] || translations.pt
   const [isEditing, setIsEditing] = useState(false)
   const [editTitle, setEditTitle] = useState(book?.title || '')
   const [editCategory, setEditCategory] = useState(book?.category || '')
+  const [customCategoryInput, setCustomCategoryInput] = useState('')
   const [rating, setRating] = useState(book?.rating || 0)
   const [coverFile, setCoverFile] = useState(null)
   const [isUploadingCover, setIsUploadingCover] = useState(false)
@@ -357,29 +513,43 @@ function BookPreviewModal({ book, recentBooks = [], onClose, onContinueReading, 
     if (book) {
       setEditTitle(book.title || '')
       setEditCategory(book.category || '')
+      setCustomCategoryInput('')
       setRating(book.rating || 0)
     }
   }, [book])
+
+  const handleSaveChanges = async () => {
+    let finalCategory = editCategory
+    
+    // Se selecionou "custom" e digitou algo, usa o valor customizado
+    if (editCategory === 'custom' && customCategoryInput.trim()) {
+      finalCategory = customCategoryInput.trim()
+      // Adicionar a nova categoria à lista
+      if (!categories.includes(finalCategory)) {
+        onAddCategory?.(finalCategory)
+      }
+    }
+    
+    if (book && (editTitle !== book.title || finalCategory !== book.category)) {
+      await window.nreader?.saveToLibrary?.({
+        ...book,
+        title: editTitle,
+        category: finalCategory || null
+      })
+      setIsEditing(false)
+      setCustomCategoryInput('')
+      onRefresh?.()
+    } else {
+      setIsEditing(false)
+      setCustomCategoryInput('')
+    }
+  }
 
   const progress = recentBooks.find(
     (item) => item.libraryId === book?.id || item.filePath === book?.fileName || item.title === book?.title
   )
   const percentage = progress?.percentage ?? 0
   const isCompleted = percentage >= 100
-
-  const handleSaveChanges = async () => {
-    if (book && editTitle !== book.title || editCategory !== book.category) {
-      await window.nreader?.saveToLibrary?.({
-        ...book,
-        title: editTitle,
-        category: editCategory
-      })
-      setIsEditing(false)
-      onRefresh?.()
-    } else {
-      setIsEditing(false)
-    }
-  }
 
   const handleRatingChange = async (newRating) => {
     setRating(newRating)
@@ -445,7 +615,7 @@ function BookPreviewModal({ book, recentBooks = [], onClose, onContinueReading, 
           <div className="modal-right">
             <div className="book-info">
               <div className="book-field">
-                <label>Título</label>
+                <label>{t.title}</label>
                 {isEditing ? (
                   <input
                     type="text"
@@ -464,17 +634,37 @@ function BookPreviewModal({ book, recentBooks = [], onClose, onContinueReading, 
               </div>
 
               <div className="book-field">
-                <label>Categoria</label>
+                <label>{t.category}</label>
                 {isEditing ? (
-                  <input
-                    type="text"
-                    value={editCategory}
-                    onChange={(e) => setEditCategory(e.target.value)}
-                    className="edit-input"
-                  />
+                  <>
+                    <select
+                      value={editCategory}
+                      onChange={(e) => {
+                        setEditCategory(e.target.value)
+                        setCustomCategoryInput('')
+                      }}
+                      className="book-select"
+                    >
+                      <option value="">{t.selectCategory}</option>
+                      {categories.map(cat => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
+                      <option value="custom">{t.addNewCategory}</option>
+                    </select>
+                    {editCategory === 'custom' && (
+                      <input
+                        type="text"
+                        value={customCategoryInput}
+                        onChange={(e) => setCustomCategoryInput(e.target.value)}
+                        placeholder={t.categoryName}
+                        className="book-input"
+                        style={{ marginTop: '8px' }}
+                      />
+                    )}
+                  </>
                 ) : (
                   <div className="field-value">
-                    <p>{book?.category || 'Sem categoria'}</p>
+                    <p>{book?.category || t.noCategory}</p>
                     <button onClick={() => setIsEditing(true)} className="edit-icon-btn">
                       ✎
                     </button>
@@ -483,18 +673,18 @@ function BookPreviewModal({ book, recentBooks = [], onClose, onContinueReading, 
               </div>
 
               <div className="book-field">
-                <label>Progresso de Leitura</label>
+                <label>{t.readingProgress}</label>
                 <div className="progress-display">{percentage}%</div>
               </div>
 
               <div className="book-field">
-                <label>Avaliação</label>
+                <label>{t.rating}</label>
                 <StarRating value={rating} onChange={handleRatingChange} />
               </div>
 
               {isEditing && (
                 <button onClick={handleSaveChanges} className="save-btn">
-                  Salvar Alterações
+                  {t.saveChanges}
                 </button>
               )}
             </div>
@@ -508,10 +698,10 @@ function BookPreviewModal({ book, recentBooks = [], onClose, onContinueReading, 
                   }}
                   className="action-btn primary"
                 >
-                  {isCompleted ? 'Ler do Início' : 'Continuar Leitura'}
+                  {isCompleted ? t.readFromStart : t.continueReading}
                 </button>
                 <button onClick={onClose} className="action-btn secondary">
-                  Fechar
+                  {t.close}
                 </button>
               </div>
             </div>
@@ -523,11 +713,13 @@ function BookPreviewModal({ book, recentBooks = [], onClose, onContinueReading, 
 }
 
 // Componente Estante
-function Library({ onOpenBook, onBack, recentBooks = [], categories = [] }) {
+function Library({ onOpenBook, onBack, recentBooks = [], categories = [], language = 'pt' }) {
+  const t = translations[language] || translations.pt
   const [books, setBooks] = useState([])
   const [searchTerm, setSearchTerm] = useState('')
   const [sortBy, setSortBy] = useState('categoria')
   const [selectedBook, setSelectedBook] = useState(null)
+  const [categoryToDelete, setCategoryToDelete] = useState(null)
 
   useEffect(() => {
     loadBooks()
@@ -536,6 +728,35 @@ function Library({ onOpenBook, onBack, recentBooks = [], categories = [] }) {
   const loadBooks = async () => {
     const libraryBooks = await window.nreader?.listLibrary?.()
     setBooks(libraryBooks || [])
+  }
+
+  const handleDeleteCategory = async (categoryName) => {
+    setCategoryToDelete(categoryName)
+  }
+
+  const confirmDeleteCategory = async () => {
+    if (!categoryToDelete) return
+    
+    // Atualizar todos os livros dessa categoria para null (sem categoria)
+    const booksToUpdate = books.filter(book => book.category === categoryToDelete)
+    
+    for (const book of booksToUpdate) {
+      await window.nreader?.saveToLibrary?.({
+        id: book.id,
+        category: null
+      })
+    }
+    
+    // Remover apenas se for uma categoria customizada
+    const defaultCats = DEFAULT_CATEGORIES.pt.concat(DEFAULT_CATEGORIES.en)
+    if (!defaultCats.includes(categoryToDelete)) {
+      const updatedCustom = customCategories.filter(cat => cat !== categoryToDelete)
+      setCustomCategories(updatedCustom)
+    }
+    
+    // Recarregar os livros
+    await loadBooks()
+    setCategoryToDelete(null)
   }
 
   const handleBookClick = (book) => {
@@ -587,14 +808,14 @@ function Library({ onOpenBook, onBack, recentBooks = [], categories = [] }) {
   return (
     <div className="library">
       <header className="library-header">
-        <button onClick={onBack}>← Voltar</button>
-        <h2>Minha Estante</h2>
+        <button onClick={onBack}>← {language === 'en' ? 'Back' : 'Voltar'}</button>
+        <h2>{t.myLibrary}</h2>
       </header>
 
       <div className="library-controls">
         <input
           type="text"
-          placeholder="Buscar por título ou categoria..."
+          placeholder={t.searchPlaceholder}
           className="search-input"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
@@ -604,28 +825,54 @@ function Library({ onOpenBook, onBack, recentBooks = [], categories = [] }) {
           value={sortBy}
           onChange={(e) => setSortBy(e.target.value)}
         >
-          <option value="categoria">Ordenar por Categoria</option>
-          <option value="alfabetica">Ordenar Alfabética</option>
-          <option value="leitura">Ordenar por Leitura</option>
+          <option value="categoria">{t.sortByCategory}</option>
+          <option value="alfabetica">{t.sortAlphabetical}</option>
+          <option value="leitura">{t.sortByReading}</option>
         </select>
       </div>
       
       <div className="books-grid">
         {sortedBooks.length === 0 ? (
-          <p className="muted">{searchTerm ? 'Nenhum livro encontrado' : 'Nenhum livro na estante ainda'}</p>
+          <p className="muted">{searchTerm ? t.noBookFound : t.noBookInLibrary}</p>
         ) : sortBy === 'categoria' ? (
           // Renderizar por categoria com divisores
           (() => {
             const categories = {}
             sortedBooks.forEach((book) => {
-              const cat = book.category || 'Sem Categoria'
+              const cat = book.category || t.noCategory
               if (!categories[cat]) categories[cat] = []
               categories[cat].push(book)
             })
 
-            return Object.keys(categories).map((category) => (
+            const defaultCategoriesList = [...DEFAULT_CATEGORIES.pt, ...DEFAULT_CATEGORIES.en]
+            const isCustomCategory = (cat) => {
+              return cat !== t.noCategory && !defaultCategoriesList.includes(cat)
+            }
+
+            // Ordenar categorias para que "Sem categoria" apareça no final
+            const sortedCategories = Object.keys(categories).sort((a, b) => {
+              if (a === t.noCategory) return 1  // "Sem categoria" vai para o final
+              if (b === t.noCategory) return -1
+              return a.localeCompare(b)  // Outros em ordem alfabética
+            })
+
+            return sortedCategories.map((category) => (
               <div key={category} className="category-group">
-                <h3 className="category-title">{category}</h3>
+                <div className="category-header">
+                  <h3 className="category-title">{category}</h3>
+                  {isCustomCategory(category) && (
+                    <button 
+                      className="delete-category-btn" 
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleDeleteCategory(category)
+                      }}
+                      title={language === 'en' ? 'Delete category' : 'Excluir categoria'}
+                    >
+                      🗑️
+                    </button>
+                  )}
+                </div>
                 <hr className="category-divider" />
                 <div className="category-books">
                   {categories[category].map((book) => {
@@ -701,7 +948,29 @@ function Library({ onOpenBook, onBack, recentBooks = [], categories = [] }) {
           onContinueReading={handleOpenBook}
           onRefresh={loadBooks}
           categories={categories}
+          onAddCategory={(newCategory) => {
+            if (!categories.includes(newCategory) && !customCategories.includes(newCategory)) {
+              setCustomCategories([...customCategories, newCategory])
+            }
+          }}
+          language={language}
         />
+      )}
+
+      {categoryToDelete && (
+        <div className="modal-overlay" onClick={() => setCategoryToDelete(null)}>
+          <div className="delete-category-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>{t.deleteCategory}</h3>
+            <div className="delete-category-actions">
+              <button onClick={confirmDeleteCategory} className="action-btn primary">
+                {t.yes}
+              </button>
+              <button onClick={() => setCategoryToDelete(null)} className="action-btn secondary">
+                {t.no}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
@@ -719,16 +988,23 @@ export default function App() {
   const [isMarkdown, setIsMarkdown] = useState(false)
   const [pdfPageCount, setPdfPageCount] = useState(1)
   const [recentBooks, setRecentBooks] = useState(initial.recentBooks ?? [])
-  const [categories, setCategories] = useState(() => {
+  const [language, setLanguage] = useState(initial.language ?? 'pt')
+  const [customCategories, setCustomCategories] = useState(() => {
     try {
       const saved = localStorage.getItem(CATEGORIES_STORAGE_KEY)
-      if (!saved) return DEFAULT_CATEGORIES
+      if (!saved) return []
       const parsed = JSON.parse(saved)
-      return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_CATEGORIES
+      return Array.isArray(parsed) ? parsed : []
     } catch {
-      return DEFAULT_CATEGORIES
+      return []
     }
   })
+
+  // Categories é calculado dinamicamente (padrão + customizadas)
+  const categories = useMemo(() => {
+    const defaultCats = DEFAULT_CATEGORIES[language]
+    return [...defaultCats, ...customCategories.filter(cat => !defaultCats.includes(cat))]
+  }, [language, customCategories])
   
   // Novos estados
   const [view, setView] = useState('home') // 'home' | 'reader' | 'library'
@@ -742,8 +1018,13 @@ export default function App() {
   const [isSplashVisible, setIsSplashVisible] = useState(false)
   const [isSplashFading, setIsSplashFading] = useState(false)
   const [currentBookRating, setCurrentBookRating] = useState(0)
+  const [isSidebarHidden, setIsSidebarHidden] = useState(false)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
   const viewTransitionTimerRef = useRef(null)
   const pageRef = useRef(null)
+  
+  const t = translations[language] || translations.pt
 
   const changeView = useCallback((nextView, onAfterChange) => {
     if (nextView === view) {
@@ -818,19 +1099,27 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    localStorage.setItem(CATEGORIES_STORAGE_KEY, JSON.stringify(categories))
-  }, [categories])
+    localStorage.setItem(CATEGORIES_STORAGE_KEY, JSON.stringify(customCategories))
+  }, [customCategories])
 
+  // Traduzir categorias padrão quando o idioma muda
   const handleAddCategory = useCallback((newCategory) => {
     const normalized = (newCategory || '').trim()
     if (!normalized) return
-    setCategories((prev) => {
-      if (prev.some((categoryItem) => categoryItem.toLowerCase() === normalized.toLowerCase())) {
+    setCustomCategories((prev) => {
+      const defaultCats = DEFAULT_CATEGORIES.pt.concat(DEFAULT_CATEGORIES.en)
+      // Não adicionar se já existe (padrão ou customizada)
+      if (defaultCats.includes(normalized) || prev.some((categoryItem) => categoryItem.toLowerCase() === normalized.toLowerCase())) {
         return prev
       }
       return [...prev, normalized]
     })
   }, [])
+
+  const handleLanguageChange = (newLanguage) => {
+    setLanguage(newLanguage)
+    persist({ language: newLanguage })
+  }
 
   // Sincronizar rating do livro atual
   useEffect(() => {
@@ -898,6 +1187,18 @@ export default function App() {
     }
   }, [book?.filePath, updateRecentBooks])
 
+  // Monitora Esc para sair do fullscreen
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && isFullscreen) {
+        setIsFullscreen(false)
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [isFullscreen])
+
   const persist = (override = {}) => {
     const newState = {
       theme,
@@ -905,6 +1206,7 @@ export default function App() {
       book,
       currentPage,
       recentBooks,
+      language,
       ...override
     }
     saveState(newState)
@@ -1164,7 +1466,7 @@ export default function App() {
         </div>
       )}
 
-      <aside className="sidebar">
+      <aside className={`sidebar ${isSidebarHidden ? 'hidden' : ''}`}>
         <div className="sidebar-brand">
           <img src="/images/n-reader-logo.png" alt={appName} className="sidebar-logo" />
         </div>
@@ -1173,13 +1475,13 @@ export default function App() {
           <button onClick={() => {
             changeView('home', () => setBook(null))
           }}>
-            ← Voltar ao início
+            {t.backToHome}
           </button>
         )}
 
         {view !== 'library' && (
           <button onClick={() => changeView('library')}>
-            📚 Ver estante
+            {t.viewLibrary}
           </button>
         )}
 
@@ -1210,20 +1512,20 @@ export default function App() {
           onClick={openBookForLibrary}
         >
           <span className="add-book-icon">📂</span>
-          <span>{isOpening ? 'Abrindo...' : 'Adicionar livro'}</span>
-          <span className="add-book-hint">Arraste ou clique</span>
+          <span>{isOpening ? t.opening : t.addBook}</span>
+          <span className="add-book-hint">{t.dragOrClick}</span>
         </div>
 
         <div className="section">
-          <label htmlFor="theme">Tema</label>
+          <label htmlFor="theme">{t.theme}</label>
           <select id="theme" value={theme} onChange={(event) => onChangeTheme(event.target.value)}>
-            <option value="light">Claro</option>
-            <option value="dark">Escuro</option>
+            <option value="light">{t.light}</option>
+            <option value="dark">{t.dark}</option>
           </select>
         </div>
 
         <div className="section">
-          <label htmlFor="fontSize">Fonte: {fontSize}px</label>
+          <label htmlFor="fontSize">{t.font}: {fontSize}px</label>
           <input
             id="fontSize"
             type="range"
@@ -1236,7 +1538,7 @@ export default function App() {
 
         {recentBooks.length > 0 && (
           <div className="section recent-books-section">
-            <label>📖 Últimos Lidos</label>
+            <label>{t.recentBooks}</label>
             <div className="recent-books-list">
               {recentBooks.map((recentBook, index) => {
                 const isCompleted = (recentBook.percentage ?? 0) >= 100
@@ -1245,7 +1547,7 @@ export default function App() {
                   key={`${recentBook.libraryId ?? recentBook.filePath}-${index}`}
                   className={`recent-book-item ${isCompleted ? 'completed' : ''}`}
                   onClick={() => handleOpenRecentBook(recentBook)}
-                  title={`${recentBook.title} - ${recentBook.percentage}% concluído`}
+                  title={`${recentBook.title} - ${recentBook.percentage}${t.completed}`}
                 >
                   <div className="recent-book-info">
                     <span className="recent-book-title truncate">{recentBook.title}</span>
@@ -1263,19 +1565,25 @@ export default function App() {
             </div>
           </div>
         )}
+
+        <button className="settings-button" onClick={() => setShowSettings(true)}>
+          {t.settings}
+        </button>
       </aside>
 
-      <main className={`reader ${viewTransitionClass}`.trim()}>
+      <main className={`reader ${viewTransitionClass} ${isSidebarHidden ? 'sidebar-hidden' : ''} ${isFullscreen ? 'fullscreen' : ''}`.trim()}>
         {isLoadingFile ? (
           <div className="loading-overlay">
             <div className="loading-spinner"></div>
-            <p>Carregando arquivo...</p>
+            <p>{t.loadingFile}</p>
           </div>
         ) : view === 'library' ? (
           <Library
             onOpenBook={handleOpenFromLibrary}
             onBack={() => changeView('home')}
             recentBooks={recentBooks}
+            categories={categories}
+            language={language}
           />
         ) : view === 'home' ? (
           <div
@@ -1287,13 +1595,34 @@ export default function App() {
           >
             <div className="drop-content">
               <div className="drop-icon">📚</div>
-              <h2>Arraste para cá seu livro</h2>
-              <p className="muted">Formatos aceitos: TXT, MD, PDF</p>
+              <h2>{t.dragBookHere}</h2>
+              <p className="muted">{t.supportedFormats}</p>
             </div>
           </div>
         ) : book ? (
           <>
             <article ref={pageRef} className="page" style={{ fontSize: `${fontSize}px` }}>
+              <div className="page-overlay-buttons">
+                <button 
+                  className="overlay-button toggle-sidebar" 
+                  title={isSidebarHidden ? 'Mostrar sidebar' : 'Esconder sidebar'}
+                  onClick={() => setIsSidebarHidden(!isSidebarHidden)}
+                >
+                  {isSidebarHidden ? '☰' : '✕'}
+                </button>
+                <button 
+                  className="overlay-button fullscreen-btn" 
+                  title={isFullscreen ? 'Sair de fullscreen' : 'Fullscreen'}
+                  onClick={() => {
+                    setIsFullscreen(!isFullscreen)
+                    if (!isFullscreen) {
+                      setIsSidebarHidden(true)
+                    }
+                  }}
+                >
+                  {isFullscreen ? '⛶' : '⛶'}
+                </button>
+              </div>
               {book?.isPdf ? (
                 <PdfPage
                   base64Content={book.content}
@@ -1317,21 +1646,21 @@ export default function App() {
             <footer className="controls">
               <div className="controls-main">
                 <button onClick={goToPrevious} disabled={safePage <= 0}>
-                  Anterior
+                  {t.previous}
                 </button>
                 {isCurrentBookCompleted && (
                   <div className="completed-reading-section">
                     <button className="restart-reading" onClick={handleRestartReading}>
-                      Ler do início
+                      {t.readFromStart}
                     </button>
                     <div className="reading-rating">
-                      <span className="rating-label">Avalie essa leitura:</span>
+                      <span className="rating-label">{t.rateReading}</span>
                       <StarRating value={currentBookRating} onChange={handleCurrentBookRatingChange} />
                     </div>
                   </div>
                 )}
                 <button onClick={goToNext} disabled={safePage >= pageCount - 1}>
-                  Próxima
+                  {t.next}
                 </button>
               </div>
             </footer>
@@ -1349,6 +1678,14 @@ export default function App() {
         initialData={pendingFile}
         categories={categories}
         onAddCategory={handleAddCategory}
+        language={language}
+      />
+
+      <SettingsModal
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+        language={language}
+        onLanguageChange={handleLanguageChange}
       />
     </div>
   )
