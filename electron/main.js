@@ -2,7 +2,15 @@ const { app, BrowserWindow, ipcMain, dialog } = require('electron')
 const path = require('path')
 const fs = require('fs')
 
-const isDev = process.env.NODE_ENV === 'development' || process.env.ELECTRON_DEV === '1'
+const ALLOWED_EXTENSIONS = new Set(['.pdf', '.txt', '.md'])
+
+function isAllowedFile(filePath) {
+  if (!path.isAbsolute(filePath)) return false
+  const ext = path.extname(filePath).toLowerCase()
+  return ALLOWED_EXTENSIONS.has(ext)
+}
+
+const isDev = process.env.NODE_ENV === 'development' || !!process.env.ELECTRON_DEV
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -46,6 +54,7 @@ ipcMain.handle('open-file-dialog', async () => {
 
 ipcMain.handle('read-text-file', async (event, filePath) => {
   try {
+    if (!isAllowedFile(filePath)) return null
     return fs.readFileSync(filePath, 'utf-8')
   } catch (err) {
     return null
@@ -54,6 +63,7 @@ ipcMain.handle('read-text-file', async (event, filePath) => {
 
 ipcMain.handle('read-pdf-file', async (event, filePath) => {
   try {
+    if (!isAllowedFile(filePath)) return null
     const data = fs.readFileSync(filePath)
     return data.buffer
   } catch (err) {

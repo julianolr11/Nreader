@@ -30,7 +30,7 @@ export default function PDFViewer({ doc }) {
   const nextPage = () => setPageNumber((p) => Math.min(numPages, p + 1))
 
   const handlePageInput = (e) => {
-    const val = parseInt(e.target.value)
+    const val = parseInt(e.target.value, 10)
     if (!isNaN(val) && val >= 1 && val <= numPages) {
       setPageNumber(val)
     }
