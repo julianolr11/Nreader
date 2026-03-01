@@ -10,5 +10,6 @@ contextBridge.exposeInMainWorld('nreader', {
   uploadCover: () => ipcRenderer.invoke('library:uploadCover'),
   deleteFromLibrary: (bookId) => ipcRenderer.invoke('library:delete', bookId),
   clearLibrary: () => ipcRenderer.invoke('library:clear'),
-  openLibraryFolder: () => ipcRenderer.invoke('library:openFolder')
+  openLibraryFolder: () => ipcRenderer.invoke('library:openFolder'),
+  quitApp: () => ipcRenderer.invoke('app:quit')
 });

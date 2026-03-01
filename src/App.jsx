@@ -91,7 +91,9 @@ const translations = {
     confirmClearLibrary: 'Remover todos os livros da estante?',
     clearingLibrary: 'Limpando estante...',
     openLibraryFolder: 'Abrir local dos arquivos',
-    discardReading: 'Descartar esta leitura?'
+    discardReading: 'Descartar esta leitura?',
+    exitApp: 'Sair',
+    confirmExitApp: 'Deseja sair do aplicativo?'
   },
   en: {
     backToHome: '← Back to home',
@@ -159,7 +161,9 @@ const translations = {
     confirmClearLibrary: 'Remove all books from library?',
     clearingLibrary: 'Clearing library...',
     openLibraryFolder: 'Open library folder',
-    discardReading: 'Discard this reading?'
+    discardReading: 'Discard this reading?',
+    exitApp: 'Exit',
+    confirmExitApp: 'Do you want to exit the app?'
   }
 }
 
@@ -322,12 +326,13 @@ function PdfPage({ base64Content, pageNum, fontScale = 1 }) {
 
         const page = await pdf.getPage(pageNum)
         const dpr = Math.min(window.devicePixelRatio || 1, 1.5)
-        const renderScale = Math.max(0.8, Math.min(3, 2 * fontScale * dpr))
+        const baseScale = Math.max(0.8, Math.min(3, 2 * fontScale * dpr))
+        const renderScale = Math.max(0.5, Math.min(baseScale * zoom, 5))
         const viewport = page.getViewport({ scale: renderScale })
 
         if (signal.aborted) return
 
-        const cacheKey = `${pageNum}-${Math.round(fontScale * 100)}`
+        const cacheKey = `${pageNum}-${Math.round(fontScale * 100)}-${Math.round(zoom * 100)}`
         const cached = bitmapCacheRef.current.get(cacheKey)
 
         // Se tiver cache, desenha direto
@@ -398,7 +403,7 @@ function PdfPage({ base64Content, pageNum, fontScale = 1 }) {
       bitmapCacheRef.current.forEach((bitmap) => bitmap?.close?.())
       bitmapCacheRef.current.clear()
     }
-  }, [base64Content, pageNum, fontScale])
+  }, [base64Content, pageNum, fontScale, zoom])
 
   // Zoom com mouse wheel
   useEffect(() => {
@@ -409,10 +414,7 @@ function PdfPage({ base64Content, pageNum, fontScale = 1 }) {
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault()
         const delta = e.deltaY > 0 ? 0.9 : 1.1
-        setZoom(prev => {
-          const next = prev * delta
-          return Math.max(0.5, Math.min(next, 3))
-        })
+        setZoom(prev => Math.max(0.5, Math.min(prev * delta, 3)))
       }
     }
 
@@ -434,7 +436,7 @@ function PdfPage({ base64Content, pageNum, fontScale = 1 }) {
     >
       <canvas
         ref={canvasRef}
-        style={{ maxWidth: '100%', height: 'auto', display: 'block', transform: `scale(${zoom})`, transformOrigin: 'top center' }}
+        style={{ maxWidth: '100%', height: 'auto', display: 'block' }}
       />
     </div>
   )
@@ -476,6 +478,7 @@ function SettingsModal({ isOpen, onClose, language, onLanguageChange, onClearLib
   const t = translations[language] || translations.pt
   const [showConfirmClear, setShowConfirmClear] = useState(false)
   const [isClearing, setIsClearing] = useState(false)
+  const [showConfirmExit, setShowConfirmExit] = useState(false)
   
   if (!isOpen) return null
 
@@ -488,6 +491,10 @@ function SettingsModal({ isOpen, onClose, language, onLanguageChange, onClearLib
     } finally {
       setIsClearing(false)
     }
+  }
+
+  const handleExit = async () => {
+    await window.nreader?.quitApp?.()
   }
 
   return (
@@ -530,8 +537,8 @@ function SettingsModal({ isOpen, onClose, language, onLanguageChange, onClearLib
         </div>
 
         <div className="settings-footer">
-          <button onClick={onClose} className="action-btn primary">
-            {t.close}
+          <button onClick={() => setShowConfirmExit(true)} className="action-btn primary">
+            {t.exitApp}
           </button>
         </div>
 
@@ -544,6 +551,22 @@ function SettingsModal({ isOpen, onClose, language, onLanguageChange, onClearLib
                   {isClearing ? t.clearingLibrary : t.yes}
                 </button>
                 <button onClick={() => setShowConfirmClear(false)} className="action-btn secondary" disabled={isClearing}>
+                  {t.no}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showConfirmExit && (
+          <div className="modal-overlay" onClick={(e) => { e.stopPropagation(); setShowConfirmExit(false) }}>
+            <div className="delete-category-modal" onClick={(e) => e.stopPropagation()}>
+              <h3>{t.confirmExitApp}</h3>
+              <div className="delete-category-actions">
+                <button onClick={handleExit} className="action-btn primary">
+                  {t.yes}
+                </button>
+                <button onClick={() => setShowConfirmExit(false)} className="action-btn secondary">
                   {t.no}
                 </button>
               </div>

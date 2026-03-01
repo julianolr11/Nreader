@@ -3,8 +3,8 @@ const path = require('path');
 const fs = require('fs/promises');
 const fsSync = require('fs');
 
-const isDev = process.env.NODE_ENV !== 'production';
-const devServerURL = 'http://localhost:5173';
+const isDev = !app.isPackaged;
+const devServerURL = 'http://localhost:5174';
 
 const resolveIconPath = () => {
   const candidates = [
@@ -276,6 +276,12 @@ app.whenReady().then(() => {
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+});
+
+// Encerrar aplicativo sob demanda
+ipcMain.handle('app:quit', () => {
+  app.quit();
+  return true;
 });
 
 app.on('window-all-closed', function () {
