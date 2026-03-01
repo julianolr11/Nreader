@@ -14,6 +14,7 @@ const copyPdfWorker = {
 
 export default defineConfig({
   plugins: [react(), copyPdfWorker],
+  base: './',
   build: {
     outDir: 'dist'
   },

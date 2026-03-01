@@ -16,8 +16,12 @@ if (!Promise.withResolvers) {
   }
 }
 
-// Use local worker from node_modules
-GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js'
+// Use local worker wrapper (adds polyfill and imports the real worker)
+const workerSrc =
+  typeof window !== 'undefined' && window.location?.protocol === 'file:'
+    ? './pdf-worker-wrapper.js'
+    : '/pdf-worker-wrapper.js'
+GlobalWorkerOptions.workerSrc = workerSrc
 
 // Traduções
 const translations = {
@@ -39,6 +43,8 @@ const translations = {
     sortAlphabetical: 'Ordenar Alfabética',
     sortByReading: 'Ordenar por Leitura',
     sortByRecent: 'Adicionados Recentemente',
+    finish: 'Finalizar',
+    ratingModalTitle: 'Avalie essa leitura',
     noBookFoundNoCategory: 'Sem categoria',
     new: 'Novo',
     addedAt: 'Adicionado em',
@@ -96,6 +102,8 @@ const translations = {
     sortAlphabetical: 'Sort Alphabetically',
     sortByReading: 'Sort by Reading',
     sortByRecent: 'Recently Added',
+    finish: 'Finish',
+    ratingModalTitle: 'Rate this reading',
     noBookFoundNoCategory: 'No category',
     new: 'New',
     addedAt: 'Added on',
@@ -739,7 +747,7 @@ function BookPreviewModal({ book, recentBooks = [], onClose, onContinueReading, 
 }
 
 // Componente Estante
-function Library({ onOpenBook, onBack, recentBooks = [], categories = [], language = 'pt' }) {
+function Library({ onOpenBook, onBack, recentBooks = [], categories = [], language = 'pt', refreshKey = 0 }) {
   const t = translations[language] || translations.pt
   const [books, setBooks] = useState([])
   const [searchTerm, setSearchTerm] = useState('')
@@ -749,7 +757,7 @@ function Library({ onOpenBook, onBack, recentBooks = [], categories = [], langua
 
   useEffect(() => {
     loadBooks()
-  }, [])
+  }, [refreshKey])
 
   const loadBooks = async () => {
     const libraryBooks = await window.nreader?.listLibrary?.()
@@ -1028,6 +1036,7 @@ export default function App() {
   const [book, setBook] = useState(initial.book ?? null)
   const [currentPage, setCurrentPage] = useState(initial.currentPage ?? 0)
   const [isOpening, setIsOpening] = useState(false)
+  const [libraryRefresh, setLibraryRefresh] = useState(0)
   const [isMarkdown, setIsMarkdown] = useState(false)
   const [pdfPageCount, setPdfPageCount] = useState(1)
   const [recentBooks, setRecentBooks] = useState(initial.recentBooks ?? [])
@@ -1057,6 +1066,7 @@ export default function App() {
   const [isDragging, setIsDragging] = useState(false)
   const [isDraggingAddBook, setIsDraggingAddBook] = useState(false)
   const [isLoadingFile, setIsLoadingFile] = useState(false)
+  const [showFinishModal, setShowFinishModal] = useState(false)
   const [showSplash, setShowSplash] = useState(true)
   const [isSplashVisible, setIsSplashVisible] = useState(false)
   const [isSplashFading, setIsSplashFading] = useState(false)
@@ -1322,6 +1332,20 @@ export default function App() {
   }
 
   const goToNext = () => {
+    const isLastPage = safePage >= pageCount - 1
+
+    if (isLastPage) {
+      // Marca leitura como concluída e abre modal de avaliação
+      const finalPage = Math.max(pageCount - 1, 0)
+      setCurrentPage(finalPage)
+      persist({ currentPage: finalPage })
+      if (book) {
+        updateRecentBooks(book, finalPage, pageCount)
+      }
+      setShowFinishModal(true)
+      return
+    }
+
     const next = Math.min(safePage + 1, pageCount - 1)
     setCurrentPage(next)
     persist({ currentPage: next })
@@ -1403,6 +1427,7 @@ export default function App() {
         coverImage: metadata.coverImage
       })
       setPendingFile(null)
+      setLibraryRefresh(prev => prev + 1)
       changeView('library')
     } catch (err) {
       console.error('Erro ao salvar:', err)
@@ -1500,19 +1525,32 @@ export default function App() {
     }
   }
 
+  const finishAndGoToLibrary = useCallback(() => {
+    setShowFinishModal(false)
+    setLibraryRefresh(prev => prev + 1)
+    changeView('library')
+  }, [changeView])
+
+  const handleFinishRatingChange = async (newRating) => {
+    await handleCurrentBookRatingChange(newRating)
+    finishAndGoToLibrary()
+  }
+
   const rootClassName = theme === 'dark' ? 'app dark' : 'app'
+  const isLastPage = safePage >= pageCount - 1
+  const nextLabel = isLastPage ? t.finish : t.next
 
   return (
     <div className={rootClassName}>
       {showSplash && (
         <div className={`splash-overlay ${isSplashVisible ? 'show' : ''} ${isSplashFading ? 'fade-out' : ''}`}>
-          <img src="/images/n-reader-splash.png" alt="Splash Nreader" className="splash-image" />
+          <img src="images/n-reader-splash.png" alt="Splash Nreader" className="splash-image" />
         </div>
       )}
 
       <aside className={`sidebar ${isSidebarHidden ? 'hidden' : ''}`}>
         <div className="sidebar-brand">
-          <img src="/images/n-reader-logo.png" alt={appName} className="sidebar-logo" />
+          <img src="images/n-reader-logo.png" alt={appName} className="sidebar-logo" />
         </div>
 
         {view !== 'home' && (
@@ -1524,7 +1562,10 @@ export default function App() {
         )}
 
         {view !== 'library' && (
-          <button onClick={() => changeView('library')}>
+          <button onClick={() => {
+            setLibraryRefresh(prev => prev + 1)
+            changeView('library')
+          }}>
             {t.viewLibrary}
           </button>
         )}
@@ -1628,6 +1669,7 @@ export default function App() {
             recentBooks={recentBooks}
             categories={categories}
             language={language}
+            refreshKey={libraryRefresh}
           />
         ) : view === 'home' ? (
           <div
@@ -1703,14 +1745,30 @@ export default function App() {
                     </div>
                   </div>
                 )}
-                <button onClick={goToNext} disabled={safePage >= pageCount - 1}>
-                  {t.next}
+                <button onClick={goToNext}>
+                  {nextLabel}
                 </button>
               </div>
             </footer>
           </>
         ) : null}
       </main>
+
+      {showFinishModal && (
+        <div className="modal-overlay" onClick={finishAndGoToLibrary}>
+          <div className="finish-reading-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>{t.ratingModalTitle}</h3>
+            <p className="muted">{t.rateReading}</p>
+            <div className="finish-rating-stars">
+              <StarRating value={currentBookRating} onChange={handleFinishRatingChange} />
+            </div>
+            <div className="finish-modal-actions">
+              <button className="action-btn secondary" onClick={finishAndGoToLibrary}>{t.close}</button>
+              <button className="action-btn primary" onClick={finishAndGoToLibrary}>{t.viewLibrary}</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <BookModal
         isOpen={isModalOpen}

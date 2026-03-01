@@ -4,21 +4,28 @@ const fs = require('fs/promises');
 const fsSync = require('fs');
 
 const isDev = process.env.NODE_ENV !== 'production';
+const devServerURL = 'http://localhost:5173';
+
+const resolveIconPath = () => {
+  const candidates = [
+    path.join(__dirname, 'dist', 'images', 'n-ico.ico'),
+    path.join(__dirname, 'public', 'images', 'n-ico.ico')
+  ];
+  return candidates.find(fsSync.existsSync);
+};
 
 const LIBRARY_PATH = path.join(app.getPath('userData'), 'Estante');
 const METADATA_FILE = path.join(LIBRARY_PATH, 'metadata.json');
 
 function createWindow() {
-  const iconPath = isDev
-    ? path.join(__dirname, 'public', 'images', 'n-ico.ico')
-    : path.join(__dirname, 'dist', 'images', 'n-ico.ico');
+  const iconPath = resolveIconPath();
 
   const win = new BrowserWindow({
     width: 1000,
     height: 700,
     show: false,
     backgroundColor: '#000000',
-    icon: fsSync.existsSync(iconPath) ? iconPath : undefined,
+    icon: iconPath,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -26,14 +33,25 @@ function createWindow() {
     }
   });
 
+  // Oculta completamente a barra de menu (File/Edit/View/Help)
+  win.setMenuBarVisibility(false)
+  win.removeMenu()
+
   // Mostrar janela apenas quando estiver pronta
   win.once('ready-to-show', () => {
     win.show();
   });
 
   if (isDev) {
-    win.loadURL('http://localhost:5173');
+    win.loadURL(devServerURL);
     win.webContents.openDevTools();
+
+    // Se o servidor de dev não estiver rodando (ex.: npm start), faz fallback para build
+    const fallbackToDist = () => {
+      win.loadFile(path.join(__dirname, 'dist', 'index.html'));
+    };
+
+    win.webContents.once('did-fail-load', fallbackToDist);
   } else {
     win.loadFile(path.join(__dirname, 'dist', 'index.html'));
   }

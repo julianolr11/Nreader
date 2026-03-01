@@ -6,6 +6,7 @@ html, body, #root {
 
 body {
   font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  transition: background-color 0.7s ease, color 0.7s ease;
 }
 
 .app {
@@ -15,7 +16,10 @@ body {
   color: #111827;
   background: #f8fafc;
   overflow: hidden;
-  transition: grid-template-columns 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition:
+    grid-template-columns 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    background-color 0.7s ease,
+    color 0.7s ease;
 }
 
 .app.dark {
@@ -35,6 +39,7 @@ body {
 
 .reader {
   width: 100%;
+  transition: background-color 0.7s ease, color 0.7s ease;
 }
 
 .reader.sidebar-hidden {
@@ -222,6 +227,7 @@ body {
   background: linear-gradient(180deg, rgba(248, 250, 252, 0.8) 0%, rgba(241, 245, 249, 0.8) 100%);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
+  transition: background 0.7s ease, border-color 0.7s ease, color 0.7s ease;
 }
 
 .app.dark .sidebar {
@@ -696,6 +702,7 @@ input[type='range'] {
   align-items: flex-start;
   justify-content: flex-start;
   position: relative;
+  transition: background-color 0.7s ease, border-color 0.7s ease, color 0.7s ease;
 }
 
 .page canvas {
@@ -1255,6 +1262,7 @@ input[type='range'] {
   overflow-y: auto;
   overflow-x: hidden;
   box-sizing: border-box;
+  transition: background-color 0.7s ease, color 0.7s ease;
 }
 
 .library-header {
@@ -2200,4 +2208,50 @@ input[type='range'] {
 .delete-category-actions .action-btn {
   flex: 1;
   max-width: 150px;
+}
+
+/* Modal de finalização e avaliação */
+.finish-reading-modal {
+  background: #ffffff;
+  border-radius: 18px;
+  padding: 28px 24px;
+  max-width: 440px;
+  width: 90%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.app.dark .finish-reading-modal {
+  background: #1e293b;
+  color: #e5e7eb;
+}
+
+.finish-reading-modal h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.app.dark .finish-reading-modal h3 {
+  color: #e5e7eb;
+}
+
+.finish-rating-stars {
+  display: flex;
+  justify-content: center;
+  margin: 4px 0 8px;
+}
+
+.finish-modal-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.finish-modal-actions .action-btn {
+  flex: 1;
 }
