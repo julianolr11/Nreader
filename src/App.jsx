@@ -38,6 +38,12 @@ const translations = {
     sortByCategory: 'Ordenar por Categoria',
     sortAlphabetical: 'Ordenar Alfabética',
     sortByReading: 'Ordenar por Leitura',
+    sortByRecent: 'Adicionados Recentemente',
+    noBookFoundNoCategory: 'Sem categoria',
+    new: 'Novo',
+    addedAt: 'Adicionado em',
+    lastRead: 'Última vez lido:',
+    neverRead: 'Nunca lido',
     noBookFound: 'Nenhum livro encontrado',
     noBookInLibrary: 'Nenhum livro na estante ainda',
     noCategory: 'Sem Categoria',
@@ -89,6 +95,12 @@ const translations = {
     sortByCategory: 'Sort by Category',
     sortAlphabetical: 'Sort Alphabetically',
     sortByReading: 'Sort by Reading',
+    sortByRecent: 'Recently Added',
+    noBookFoundNoCategory: 'No category',
+    new: 'New',
+    addedAt: 'Added on',
+    lastRead: 'Last read:',
+    neverRead: 'Never read',
     noBookFound: 'No book found',
     noBookInLibrary: 'No books in library yet',
     noCategory: 'No Category',
@@ -682,6 +694,20 @@ function BookPreviewModal({ book, recentBooks = [], onClose, onContinueReading, 
                 <StarRating value={rating} onChange={handleRatingChange} />
               </div>
 
+              <div className="book-field">
+                <label>{t.addedAt}</label>
+                <p className="field-value-text">{new Date(book?.addedAt).toLocaleDateString(language === 'pt' ? 'pt-BR' : 'en-US')}</p>
+              </div>
+
+              <div className="book-field">
+                <label>{t.lastRead}</label>
+                <p className="field-value-text">
+                  {progress?.lastAccessed
+                    ? new Date(progress.lastAccessed).toLocaleDateString(language === 'pt' ? 'pt-BR' : 'en-US')
+                    : t.neverRead}
+                </p>
+              </div>
+
               {isEditing && (
                 <button onClick={handleSaveChanges} className="save-btn">
                   {t.saveChanges}
@@ -728,6 +754,15 @@ function Library({ onOpenBook, onBack, recentBooks = [], categories = [], langua
   const loadBooks = async () => {
     const libraryBooks = await window.nreader?.listLibrary?.()
     setBooks(libraryBooks || [])
+  }
+
+  // Verificar se livro foi adicionado há menos de 3 dias
+  const isNewBook = (addedAt) => {
+    if (!addedAt) return false
+    const now = Date.now()
+    const added = new Date(addedAt).getTime()
+    const daysDiff = (now - added) / (1000 * 60 * 60 * 24)
+    return daysDiff < 3
   }
 
   const handleDeleteCategory = async (categoryName) => {
@@ -794,6 +829,11 @@ function Library({ onOpenBook, onBack, recentBooks = [], categories = [], langua
         (item) => item.libraryId === b.id || item.filePath === b.fileName || item.title === b.title
       )?.percentage ?? 0
       return progressB - progressA
+    } else if (sortBy === 'recente') {
+      // recentemente adicionados (mais novos primeiro)
+      const dateA = new Date(a.addedAt || 0).getTime()
+      const dateB = new Date(b.addedAt || 0).getTime()
+      return dateB - dateA
     } else {
       // categoria
       const catA = a.category || ''
@@ -828,6 +868,7 @@ function Library({ onOpenBook, onBack, recentBooks = [], categories = [], langua
           <option value="categoria">{t.sortByCategory}</option>
           <option value="alfabetica">{t.sortAlphabetical}</option>
           <option value="leitura">{t.sortByReading}</option>
+          <option value="recente">{t.sortByRecent}</option>
         </select>
       </div>
       
@@ -895,6 +936,7 @@ function Library({ onOpenBook, onBack, recentBooks = [], categories = [], langua
                           </div>
                         )}
                         {isCompleted && <span className="completion-check">✓</span>}
+                        {isNewBook(book.addedAt) && <span className="new-badge">{t.new}</span>}
                         <div className="book-title-with-progress">
                           <h3 className="truncate">{book.title}</h3>
                           <span className="book-progress">{progress?.percentage ?? 0}%</span>
@@ -929,6 +971,7 @@ function Library({ onOpenBook, onBack, recentBooks = [], categories = [], langua
                   </div>
                 )}
                 {isCompleted && <span className="completion-check">✓</span>}
+                {isNewBook(book.addedAt) && <span className="new-badge">{t.new}</span>}
                 <div className="book-title-with-progress">
                   <h3 className="truncate">{book.title}</h3>
                   <span className="book-progress">{progress?.percentage ?? 0}%</span>
@@ -1432,6 +1475,7 @@ export default function App() {
       )
     : null
   const isCurrentBookCompleted = (currentRecentBook?.percentage ?? 0) >= 100
+  const shouldShowRating = isCurrentBookCompleted || pageCount === 1
 
   const handleRestartReading = () => {
     setCurrentPage(0)
@@ -1648,7 +1692,7 @@ export default function App() {
                 <button onClick={goToPrevious} disabled={safePage <= 0}>
                   {t.previous}
                 </button>
-                {isCurrentBookCompleted && (
+                {shouldShowRating && (
                   <div className="completed-reading-section">
                     <button className="restart-reading" onClick={handleRestartReading}>
                       {t.readFromStart}
