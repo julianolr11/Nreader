@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "node scripts/clean-library.js && concurrently \"vite --strictPort --port 5174\" \"wait-on http://localhost:5174 && electron .\"",
     "build": "vite build",
-    "start": "electron ."
+    "start": "electron .",
+    "dist": "npm run build && electron-builder -w"
   },
   "dependencies": {
     "pdfjs-dist": "^4.0.0",
@@ -17,9 +18,32 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.0.0",
-    "electron": "^26.0.0",
-    "vite": "^5.0.0",
     "concurrently": "^8.0.0",
+    "electron": "^26.0.0",
+    "electron-builder": "^24.13.3",
+    "jimp": "^1.6.0",
+    "png-to-ico": "^3.0.1",
+    "sharp": "^0.34.5",
+    "vite": "^5.0.0",
     "wait-on": "^7.0.0"
+  },
+  "build": {
+    "appId": "com.nreader.app",
+    "productName": "Nreader",
+    "files": [
+      "dist/**",
+      "main.js",
+      "preload.js",
+      "package.json",
+      "public/**"
+    ],
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "public/images/n-ico.ico"
+    }
   }
 }
