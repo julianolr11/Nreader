@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
 const path = require('path');
 const fs = require('fs/promises');
 const fsSync = require('fs');
@@ -125,6 +125,15 @@ async function saveMetadata(metadata) {
   await fs.writeFile(METADATA_FILE, JSON.stringify(metadata, null, 2));
 }
 
+async function clearLibrary() {
+  try {
+    await fs.rm(LIBRARY_PATH, { recursive: true, force: true });
+  } catch (err) {
+    console.error('Erro ao limpar estante:', err);
+  }
+  await ensureLibraryFolder();
+}
+
 // Handler para salvar livro na estante
 ipcMain.handle('library:save', async (event, bookData) => {
   await ensureLibraryFolder();
@@ -170,6 +179,12 @@ ipcMain.handle('library:save', async (event, bookData) => {
   await saveMetadata(metadata);
   
   return bookEntry;
+});
+
+// Handler para limpar toda a estante
+ipcMain.handle('library:clear', async () => {
+  await clearLibrary();
+  return true;
 });
 
 // Handler para listar livros
@@ -223,6 +238,35 @@ ipcMain.handle('library:uploadCover', async () => {
   
   const buffer = await fs.readFile(result.filePaths[0]);
   return `data:image/${path.extname(result.filePaths[0]).slice(1)};base64,${buffer.toString('base64')}`;
+});
+
+// Handler para excluir livro da estante
+ipcMain.handle('library:delete', async (event, bookId) => {
+  await ensureLibraryFolder();
+  const metadata = await loadMetadata();
+  const index = metadata.books.findIndex((b) => b.id === bookId);
+  if (index === -1) return false;
+
+  const [book] = metadata.books.splice(index, 1);
+  await saveMetadata(metadata);
+
+  if (book?.fileName) {
+    const filePath = path.join(LIBRARY_PATH, book.fileName);
+    try {
+      await fs.unlink(filePath);
+    } catch (err) {
+      console.error('Erro ao excluir arquivo do livro:', err);
+    }
+  }
+
+  return true;
+});
+
+// Abrir pasta da estante no explorador
+ipcMain.handle('library:openFolder', async () => {
+  await ensureLibraryFolder();
+  await shell.openPath(LIBRARY_PATH);
+  return true;
 });
 
 app.whenReady().then(() => {

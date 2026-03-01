@@ -34,6 +34,8 @@ const translations = {
     theme: 'Tema',
     light: 'Claro',
     dark: 'Escuro',
+    docDark: 'Modo escuro do documento',
+    docLight: 'Modo claro do documento',
     font: 'Fonte',
     recentBooks: '📖 Últimos Lidos',
     settings: '⚙️ Configurações',
@@ -48,7 +50,7 @@ const translations = {
     noBookFoundNoCategory: 'Sem categoria',
     new: 'Novo',
     addedAt: 'Adicionado em',
-    lastRead: 'Última vez lido:',
+    lastRead: 'Lido em:',
     neverRead: 'Nunca lido',
     noBookFound: 'Nenhum livro encontrado',
     noBookInLibrary: 'Nenhum livro na estante ainda',
@@ -63,6 +65,8 @@ const translations = {
     bookName: 'Nome do livro',
     save: 'Salvar',
     cancel: 'Cancelar',
+    deleteBook: 'Excluir',
+    confirmDeleteBook: 'Deseja excluir este livro?',
     continueReading: 'Continuar Leitura',
     readFromStart: 'Ler do Início',
     close: 'Fechar',
@@ -82,7 +86,12 @@ const translations = {
     completed: '% concluído',
     deleteCategory: 'Deseja excluir essa categoria?',
     yes: 'Sim',
-    no: 'Não'
+    no: 'Não',
+    clearLibrary: 'Limpar estante',
+    confirmClearLibrary: 'Remover todos os livros da estante?',
+    clearingLibrary: 'Limpando estante...',
+    openLibraryFolder: 'Abrir local dos arquivos',
+    discardReading: 'Descartar esta leitura?'
   },
   en: {
     backToHome: '← Back to home',
@@ -93,6 +102,8 @@ const translations = {
     theme: 'Theme',
     light: 'Light',
     dark: 'Dark',
+    docDark: 'Document dark mode',
+    docLight: 'Document light mode',
     font: 'Font',
     recentBooks: '📖 Recent Books',
     settings: '⚙️ Settings',
@@ -122,6 +133,8 @@ const translations = {
     bookName: 'Book name',
     save: 'Save',
     cancel: 'Cancel',
+    deleteBook: 'Delete',
+    confirmDeleteBook: 'Do you want to delete this book?',
     continueReading: 'Continue Reading',
     readFromStart: 'Read from Start',
     close: 'Close',
@@ -141,7 +154,12 @@ const translations = {
     completed: '% completed',
     deleteCategory: 'Do you want to delete this category?',
     yes: 'Yes',
-    no: 'No'
+    no: 'No',
+    clearLibrary: 'Clear library',
+    confirmClearLibrary: 'Remove all books from library?',
+    clearingLibrary: 'Clearing library...',
+    openLibraryFolder: 'Open library folder',
+    discardReading: 'Discard this reading?'
   }
 }
 
@@ -171,6 +189,37 @@ const DEFAULT_CATEGORIES = {
     'Science'
   ]
 }
+const CATEGORY_TRANSLATIONS = {
+  en: {
+    'Ficção': 'Fiction',
+    'Não-ficção': 'Non-fiction',
+    'Técnico': 'Technical',
+    'Biografia': 'Biography',
+    'Romance': 'Romance',
+    'Fantasia': 'Fantasy',
+    'Autoajuda': 'Self-help',
+    'História': 'History',
+    'Ciência': 'Science'
+  },
+  pt: {
+    'Fiction': 'Ficção',
+    'Non-fiction': 'Não-ficção',
+    'Technical': 'Técnico',
+    'Biography': 'Biografia',
+    'Romance': 'Romance',
+    'Fantasy': 'Fantasia',
+    'Self-help': 'Autoajuda',
+    'History': 'História',
+    'Science': 'Ciência'
+  }
+}
+
+const translateCategoryName = (name, language) => {
+  if (!name) return name
+  const map = CATEGORY_TRANSLATIONS[language]
+  if (!map) return name
+  return map[name] || name
+}
 const VIEW_TRANSITION_DURATION = 220
 
 const loadState = () => {
@@ -194,6 +243,35 @@ const chunkText = (text, chunkSize) => {
   return chunks
 }
 
+const createPdfThumbnail = async (base64Content, targetWidth = 320) => {
+  try {
+    const binaryString = atob(base64Content)
+    const bytes = new Uint8Array(binaryString.length)
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i)
+    }
+
+    const pdf = await pdfjsLib.getDocument({ data: bytes }).promise
+    const page = await pdf.getPage(1)
+    const viewport = page.getViewport({ scale: 1 })
+    const scale = targetWidth / viewport.width
+    const scaledViewport = page.getViewport({ scale })
+
+    const canvas = document.createElement('canvas')
+    canvas.width = scaledViewport.width
+    canvas.height = scaledViewport.height
+    const ctx = canvas.getContext('2d')
+
+    await page.render({ canvasContext: ctx, viewport: scaledViewport }).promise
+
+    const dataUrl = canvas.toDataURL('image/png')
+    return dataUrl
+  } catch (err) {
+    console.error('Erro ao gerar thumbnail do PDF:', err)
+    return null
+  }
+}
+
 const isMarkdownFile = (filePath) => {
   return filePath?.toLowerCase().endsWith('.md') ?? false
 }
@@ -204,6 +282,9 @@ function PdfPage({ base64Content, pageNum, fontScale = 1 }) {
   const abortControllerRef = useRef(null)
   const [zoom, setZoom] = useState(1)
   const containerRef = useRef(null)
+  const bitmapCacheRef = useRef(new Map())
+
+  const MAX_CACHE_ITEMS = 3
 
   useEffect(() => {
     // Cancelar qualquer operação anterior
@@ -240,10 +321,23 @@ function PdfPage({ base64Content, pageNum, fontScale = 1 }) {
         if (signal.aborted) return
 
         const page = await pdf.getPage(pageNum)
-        const renderScale = Math.max(0.8, Math.min(4, 2 * fontScale))
+        const dpr = Math.min(window.devicePixelRatio || 1, 1.5)
+        const renderScale = Math.max(0.8, Math.min(3, 2 * fontScale * dpr))
         const viewport = page.getViewport({ scale: renderScale })
 
         if (signal.aborted) return
+
+        const cacheKey = `${pageNum}-${Math.round(fontScale * 100)}`
+        const cached = bitmapCacheRef.current.get(cacheKey)
+
+        // Se tiver cache, desenha direto
+        if (cached) {
+          const context = canvasRef.current.getContext('2d')
+          canvasRef.current.width = cached.width
+          canvasRef.current.height = cached.height
+          context.drawImage(cached, 0, 0)
+          return
+        }
 
         // Limpar canvas antes de renderizar
         canvasRef.current.width = viewport.width
@@ -257,6 +351,27 @@ function PdfPage({ base64Content, pageNum, fontScale = 1 }) {
         
         await renderTaskRef.current.promise
         renderTaskRef.current = null
+
+        // Salvar em cache (LRU simples)
+        try {
+          const bitmap = await createImageBitmap(canvasRef.current)
+          if (bitmap) {
+            if (bitmapCacheRef.current.has(cacheKey)) {
+              const old = bitmapCacheRef.current.get(cacheKey)
+              old?.close?.()
+              bitmapCacheRef.current.delete(cacheKey)
+            }
+            bitmapCacheRef.current.set(cacheKey, bitmap)
+            if (bitmapCacheRef.current.size > MAX_CACHE_ITEMS) {
+              const firstKey = bitmapCacheRef.current.keys().next().value
+              const toRemove = bitmapCacheRef.current.get(firstKey)
+              toRemove?.close?.()
+              bitmapCacheRef.current.delete(firstKey)
+            }
+          }
+        } catch (err) {
+          // Ignorar falhas de cache para não quebrar render
+        }
       } catch (err) {
         if (err.name !== 'RenderingCancelledError' && !signal.aborted) {
           console.error('Erro ao renderizar PDF:', err)
@@ -280,6 +395,8 @@ function PdfPage({ base64Content, pageNum, fontScale = 1 }) {
         }
         renderTaskRef.current = null
       }
+      bitmapCacheRef.current.forEach((bitmap) => bitmap?.close?.())
+      bitmapCacheRef.current.clear()
     }
   }, [base64Content, pageNum, fontScale])
 
@@ -313,11 +430,11 @@ function PdfPage({ base64Content, pageNum, fontScale = 1 }) {
     <div
       className="pdf-scroll"
       ref={containerRef}
-      style={{ width: '100%', height: '100%', overflow: 'auto', display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-start' }}
+      style={{ width: '100%', height: '100%', overflow: 'auto', display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}
     >
       <canvas
         ref={canvasRef}
-        style={{ maxWidth: '100%', height: 'auto', display: 'block', transform: `scale(${zoom})`, transformOrigin: 'top left' }}
+        style={{ maxWidth: '100%', height: 'auto', display: 'block', transform: `scale(${zoom})`, transformOrigin: 'top center' }}
       />
     </div>
   )
@@ -355,10 +472,23 @@ function StarRating({ value, onChange }) {
 }
 
 // Componente Modal de Configurações
-function SettingsModal({ isOpen, onClose, language, onLanguageChange }) {
+function SettingsModal({ isOpen, onClose, language, onLanguageChange, onClearLibrary, onOpenLibraryFolder }) {
   const t = translations[language] || translations.pt
+  const [showConfirmClear, setShowConfirmClear] = useState(false)
+  const [isClearing, setIsClearing] = useState(false)
   
   if (!isOpen) return null
+
+  const confirmClear = async () => {
+    if (isClearing) return
+    setIsClearing(true)
+    try {
+      await onClearLibrary?.()
+      setShowConfirmClear(false)
+    } finally {
+      setIsClearing(false)
+    }
+  }
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -376,6 +506,27 @@ function SettingsModal({ isOpen, onClose, language, onLanguageChange }) {
               <option value="en">{t.english}</option>
             </select>
           </div>
+
+          <div className="settings-section">
+            <label>{t.openLibraryFolder}</label>
+            <button
+              className="action-btn secondary"
+              onClick={onOpenLibraryFolder}
+            >
+              {t.openLibraryFolder}
+            </button>
+          </div>
+
+          <div className="settings-section">
+            <label>{t.clearLibrary}</label>
+            <button
+              className="action-btn danger"
+              onClick={() => setShowConfirmClear(true)}
+              disabled={isClearing}
+            >
+              {isClearing ? t.clearingLibrary : t.clearLibrary}
+            </button>
+          </div>
         </div>
 
         <div className="settings-footer">
@@ -383,6 +534,22 @@ function SettingsModal({ isOpen, onClose, language, onLanguageChange }) {
             {t.close}
           </button>
         </div>
+
+        {showConfirmClear && (
+          <div className="modal-overlay" onClick={(e) => { e.stopPropagation(); setShowConfirmClear(false) }}>
+            <div className="delete-category-modal" onClick={(e) => e.stopPropagation()}>
+              <h3>{t.confirmClearLibrary}</h3>
+              <div className="delete-category-actions">
+                <button onClick={confirmClear} className="action-btn primary" disabled={isClearing}>
+                  {isClearing ? t.clearingLibrary : t.yes}
+                </button>
+                <button onClick={() => setShowConfirmClear(false)} className="action-btn secondary" disabled={isClearing}>
+                  {t.no}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -395,6 +562,9 @@ function BookModal({ isOpen, onClose, onSave, initialData, categories = [], onAd
   const [category, setCategory] = useState('')
   const [customCategory, setCustomCategory] = useState('')
   const [coverImage, setCoverImage] = useState(null)
+  const [hasSaved, setHasSaved] = useState(false)
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false)
+  const autoCover = initialData?.autoCover
 
   // Reset form when modal opens with new data
   useEffect(() => {
@@ -402,7 +572,9 @@ function BookModal({ isOpen, onClose, onSave, initialData, categories = [], onAd
       setTitle(initialData.title || '')
       setCategory('')
       setCustomCategory('')
-      setCoverImage(null)
+      setCoverImage(initialData.autoCover || null)
+      setHasSaved(false)
+      setShowDiscardConfirm(false)
     }
   }, [isOpen, initialData])
 
@@ -412,16 +584,25 @@ function BookModal({ isOpen, onClose, onSave, initialData, categories = [], onAd
       onAddCategory(finalCategory)
     }
     onSave({ title, category: finalCategory, coverImage })
+    setHasSaved(true)
+    onClose()
+  }
+
+  const attemptClose = () => {
+    if (!hasSaved) {
+      setShowDiscardConfirm(true)
+      return
+    }
     onClose()
   }
 
   if (!isOpen) return null
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={attemptClose}>
       <div className="book-preview-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-content">
-          <button className="modal-close" onClick={onClose}>✕</button>
+          <button className="modal-close" onClick={attemptClose}>✕</button>
           
           {/* Esquerda - Capa */}
           <div className="modal-left">
@@ -486,7 +667,7 @@ function BookModal({ isOpen, onClose, onSave, initialData, categories = [], onAd
                 >
                   <option value="">{t.selectCategory}</option>
                   {categories.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
+                    <option key={cat} value={cat}>{translateCategoryName(cat, language)}</option>
                   ))}
                   <option value="custom">{t.addNewCategory}</option>
                 </select>
@@ -506,13 +687,31 @@ function BookModal({ isOpen, onClose, onSave, initialData, categories = [], onAd
               <button onClick={handleSave} className="action-btn primary">
                 {t.save}
               </button>
-              <button onClick={onClose} className="action-btn secondary">
+              <button onClick={attemptClose} className="action-btn secondary">
                 {t.cancel}
               </button>
             </div>
           </div>
         </div>
       </div>
+
+      {showDiscardConfirm && (
+        <div className="modal-overlay" onClick={() => setShowDiscardConfirm(false)}>
+          <div className="discard-confirm-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="discard-icon">⚠️</div>
+            <h3>{t.discardReading}</h3>
+            <p className="muted">{t.cancel}?</p>
+            <div className="discard-actions">
+              <button className="action-btn secondary" onClick={() => setShowDiscardConfirm(false)}>
+                {t.no}
+              </button>
+              <button className="action-btn primary" onClick={onClose}>
+                {t.yes}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -527,6 +726,7 @@ function BookPreviewModal({ book, recentBooks = [], onClose, onContinueReading, 
   const [rating, setRating] = useState(book?.rating || 0)
   const [coverFile, setCoverFile] = useState(null)
   const [isUploadingCover, setIsUploadingCover] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   // Sincronizar estados quando o book mudar
   useEffect(() => {
@@ -563,6 +763,14 @@ function BookPreviewModal({ book, recentBooks = [], onClose, onContinueReading, 
       setIsEditing(false)
       setCustomCategoryInput('')
     }
+  }
+
+  const handleDeleteBook = async () => {
+    if (!book?.id) return
+    await window.nreader?.deleteFromLibrary?.(book.id)
+    setShowDeleteConfirm(false)
+    onClose()
+    onRefresh?.()
   }
 
   const progress = recentBooks.find(
@@ -609,13 +817,15 @@ function BookPreviewModal({ book, recentBooks = [], onClose, onContinueReading, 
           {/* Esquerda - Capa */}
           <div className="modal-left">
             <div className="cover-container">
-              {book?.coverImage ? (
-                <img src={book.coverImage} alt={book?.title} className="cover-image" />
-              ) : (
-                <div className="cover-placeholder">
-                  {book?.extension?.toUpperCase().slice(1) || '?'}
-                </div>
-              )}
+                {book?.coverImage ? (
+                  <img src={book.coverImage} alt={book?.title} className="cover-image" />
+                ) : pendingFile?.autoCover ? (
+                  <img src={pendingFile.autoCover} alt={book?.title || 'Capa automática'} className="cover-image" />
+                ) : (
+                  <div className="cover-placeholder">
+                    {book?.extension?.toUpperCase().slice(1) || '?'}
+                  </div>
+                )}
               <div className="cover-overlay">
                 <label className="cover-edit-btn">
                   ✎ Editar capa
@@ -667,7 +877,7 @@ function BookPreviewModal({ book, recentBooks = [], onClose, onContinueReading, 
                     >
                       <option value="">{t.selectCategory}</option>
                       {categories.map(cat => (
-                        <option key={cat} value={cat}>{cat}</option>
+                        <option key={cat} value={cat}>{translateCategoryName(cat, language)}</option>
                       ))}
                       <option value="custom">{t.addNewCategory}</option>
                     </select>
@@ -684,7 +894,7 @@ function BookPreviewModal({ book, recentBooks = [], onClose, onContinueReading, 
                   </>
                 ) : (
                   <div className="field-value">
-                    <p>{book?.category || t.noCategory}</p>
+                    <p>{translateCategoryName(book?.category, language) || t.noCategory}</p>
                     <button onClick={() => setIsEditing(true)} className="edit-icon-btn">
                       ✎
                     </button>
@@ -734,13 +944,28 @@ function BookPreviewModal({ book, recentBooks = [], onClose, onContinueReading, 
                 >
                   {isCompleted ? t.readFromStart : t.continueReading}
                 </button>
-                <button onClick={onClose} className="action-btn secondary">
-                  {t.close}
+                <button onClick={() => setShowDeleteConfirm(true)} className="action-btn secondary">
+                  {t.deleteBook}
                 </button>
               </div>
             </div>
           </div>
         </div>
+        {showDeleteConfirm && (
+          <div className="modal-overlay" onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(false) }}>
+            <div className="delete-category-modal" onClick={(e) => e.stopPropagation()}>
+              <h3>{t.confirmDeleteBook}</h3>
+              <div className="delete-category-actions">
+                <button onClick={handleDeleteBook} className="action-btn primary">
+                  {t.yes}
+                </button>
+                <button onClick={() => setShowDeleteConfirm(false)} className="action-btn secondary">
+                  {t.no}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -908,7 +1133,7 @@ function Library({ onOpenBook, onBack, recentBooks = [], categories = [], langua
             return sortedCategories.map((category) => (
               <div key={category} className="category-group">
                 <div className="category-header">
-                  <h3 className="category-title">{category}</h3>
+                  <h3 className="category-title">{translateCategoryName(category, language)}</h3>
                   {isCustomCategory(category) && (
                     <button 
                       className="delete-category-btn" 
@@ -949,7 +1174,7 @@ function Library({ onOpenBook, onBack, recentBooks = [], categories = [], langua
                           <h3 className="truncate">{book.title}</h3>
                           <span className="book-progress">{progress?.percentage ?? 0}%</span>
                         </div>
-                        <p className="muted small truncate">{book.category}</p>
+                        <p className="muted small truncate">{translateCategoryName(book.category, language)}</p>
                       </div>
                     )
                   })}
@@ -984,7 +1209,7 @@ function Library({ onOpenBook, onBack, recentBooks = [], categories = [], langua
                   <h3 className="truncate">{book.title}</h3>
                   <span className="book-progress">{progress?.percentage ?? 0}%</span>
                 </div>
-                <p className="muted small truncate">{book.category}</p>
+                <p className="muted small truncate">{translateCategoryName(book.category, language)}</p>
               </div>
             )
           })
@@ -1033,6 +1258,7 @@ export default function App() {
 
   const [theme, setTheme] = useState(initial.theme ?? 'light')
   const [fontSize, setFontSize] = useState(initial.fontSize ?? 20)
+  const [docDarkMode, setDocDarkMode] = useState(initial.docDarkMode ?? false)
   const [book, setBook] = useState(initial.book ?? null)
   const [currentPage, setCurrentPage] = useState(initial.currentPage ?? 0)
   const [isOpening, setIsOpening] = useState(false)
@@ -1076,6 +1302,7 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false)
   const viewTransitionTimerRef = useRef(null)
   const pageRef = useRef(null)
+  const readerRef = useRef(null)
   
   const t = translations[language] || translations.pt
 
@@ -1221,13 +1448,14 @@ export default function App() {
       saveState({
         theme,
         fontSize,
+        docDarkMode,
         book,
         currentPage: page,
         recentBooks: updated
       })
       return updated
     })
-  }, [theme, fontSize, book])
+  }, [theme, fontSize, docDarkMode, book])
 
   // Atualizar histórico após book estar pronto
   useEffect(() => {
@@ -1252,10 +1480,41 @@ export default function App() {
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [isFullscreen])
 
+  // Sync browser fullscreen API with UI toggle
+  useEffect(() => {
+    if (isFullscreen) {
+      const target = readerRef.current || document.documentElement
+      if (!document.fullscreenElement && target?.requestFullscreen) {
+        target.requestFullscreen().catch(() => {
+          // silencioso se o fullscreen não for permitido
+          setIsFullscreen(false)
+        })
+      }
+    } else if (document.fullscreenElement && document.exitFullscreen) {
+      document.exitFullscreen().catch(() => {
+        // silencioso se já saiu
+      })
+    }
+  }, [isFullscreen])
+
+  // Atualiza estado quando o usuário sai do fullscreen nativo (Esc/F11)
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      const active = !!document.fullscreenElement
+      if (!active) {
+        setIsFullscreen(false)
+        setIsSidebarHidden(false)
+      }
+    }
+    document.addEventListener('fullscreenchange', onFullscreenChange)
+    return () => document.removeEventListener('fullscreenchange', onFullscreenChange)
+  }, [])
+
   const persist = (override = {}) => {
     const newState = {
       theme,
       fontSize,
+      docDarkMode,
       book,
       currentPage,
       recentBooks,
@@ -1264,6 +1523,22 @@ export default function App() {
     }
     saveState(newState)
   }
+
+  const handleClearLibrary = useCallback(async () => {
+    await window.nreader?.clearLibrary?.()
+    setRecentBooks([])
+    setBook(null)
+    setCurrentPage(0)
+    setPendingFile(null)
+    setIsModalOpen(false)
+    setLibraryRefresh((v) => v + 1)
+    changeView('home')
+    persist({ recentBooks: [], book: null, currentPage: 0 })
+  }, [changeView, persist])
+
+  const handleOpenLibraryFolder = useCallback(async () => {
+    await window.nreader?.openLibraryFolder?.()
+  }, [])
 
   const openBook = async () => {
     try {
@@ -1299,20 +1574,28 @@ export default function App() {
 
       setIsLoadingFile(true)
       setIsOpening(false)
-      
+
       // Simula processamento do arquivo
       await new Promise(resolve => setTimeout(resolve, 800))
 
       const fileName = result.filePath.split(/[\\/]/).pop()
       const ext = fileName.split('.').pop().toLowerCase()
 
+      let autoCover = null
+      const isPdf = result.isPdf ?? ext === 'pdf'
+      if (isPdf && result.content) {
+        autoCover = await createPdfThumbnail(result.content)
+      }
+
       setPendingFile({
         filePath: result.filePath,
         fileName: fileName,
         title: result.title || fileName.replace(/\.[^/.]+$/, ''),
-        extension: `.${ext}`
+        extension: `.${ext}`,
+        isPdf,
+        content: result.content,
+        autoCover
       })
-      
       setIsLoadingFile(false)
       setIsModalOpen(true)
     } catch (err) {
@@ -1323,11 +1606,18 @@ export default function App() {
   }
 
   const goToPrevious = () => {
-    const next = Math.max(safePage - 1, 0)
-    setCurrentPage(next)
-    persist({ currentPage: next })
+    const previous = Math.max(safePage - 1, 0)
+    if (previous === safePage) return
+
+    setCurrentPage(previous)
+    persist({ currentPage: previous })
+    if (!book?.isPdf && pageRef.current) {
+      requestAnimationFrame(() => {
+        pageRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
+      })
+    }
     if (book) {
-      updateRecentBooks(book, next, pageCount)
+      updateRecentBooks(book, previous, pageCount)
     }
   }
 
@@ -1359,6 +1649,38 @@ export default function App() {
     }
   }
 
+  // Atalhos de navegação: páginas e rolagem
+  useEffect(() => {
+    const handleArrows = (e) => {
+      if (view !== 'reader' || !book || isModalOpen || showFinishModal || showSettings) return
+
+      const pageEl = book?.isPdf
+        ? pageRef.current?.querySelector('.pdf-scroll')
+        : pageRef.current
+      const isArrowLeft = e.key === 'ArrowLeft'
+      const isArrowRight = e.key === 'ArrowRight'
+      const isArrowUp = e.key === 'ArrowUp'
+      const isArrowDown = e.key === 'ArrowDown'
+
+      if (isArrowLeft) {
+        e.preventDefault()
+        goToPrevious()
+      } else if (isArrowRight) {
+        e.preventDefault()
+        goToNext()
+      } else if (isArrowUp && pageEl) {
+        e.preventDefault()
+        pageEl.scrollBy({ top: -120, behavior: 'smooth' })
+      } else if (isArrowDown && pageEl) {
+        e.preventDefault()
+        pageEl.scrollBy({ top: 120, behavior: 'smooth' })
+      }
+    }
+
+    document.addEventListener('keydown', handleArrows)
+    return () => document.removeEventListener('keydown', handleArrows)
+  }, [view, book, isModalOpen, showFinishModal, showSettings, goToPrevious, goToNext])
+
   const onChangeTheme = (nextTheme) => {
     setTheme(nextTheme)
     persist({ theme: nextTheme })
@@ -1368,6 +1690,14 @@ export default function App() {
     const value = Math.min(30, Math.max(8, Number(nextFontSize)))
     setFontSize(value)
     persist({ fontSize: value })
+  }
+
+  const toggleDocDarkMode = () => {
+    setDocDarkMode(prev => {
+      const next = !prev
+      persist({ docDarkMode: next })
+      return next
+    })
   }
 
   // Drag & Drop handlers
@@ -1403,15 +1733,29 @@ export default function App() {
     }
 
     setIsLoadingFile(true)
-    
-    // Simula processamento do arquivo
-    await new Promise(resolve => setTimeout(resolve, 800))
+
+    // Ler conteúdo para gerar capa automática em PDFs arrastados
+    let content = null
+    let isPdf = ext === 'pdf'
+    if (isPdf) {
+      const buffer = await file.arrayBuffer()
+      const uint = new Uint8Array(buffer)
+      // Converter para base64 de forma segura em blocos
+      let binary = ''
+      const chunkSize = 0x8000
+      for (let i = 0; i < uint.length; i += chunkSize) {
+        binary += String.fromCharCode(...uint.subarray(i, i + chunkSize))
+      }
+      content = btoa(binary)
+    }
 
     setPendingFile({
       filePath: file.path,
       fileName: file.name,
       title: file.name.replace(/\.[^/.]+$/, ''),
-      extension: `.${ext}`
+      extension: `.${ext}`,
+      isPdf,
+      content
     })
     
     setIsLoadingFile(false)
@@ -1420,11 +1764,16 @@ export default function App() {
 
   const handleSaveToLibrary = async (metadata) => {
     try {
+      let coverImage = metadata.coverImage
+      if (!coverImage && pendingFile?.isPdf && pendingFile?.content) {
+        coverImage = await createPdfThumbnail(pendingFile.content)
+      }
+
       await window.nreader?.saveToLibrary?.({
         filePath: pendingFile.filePath,
         title: metadata.title,
         category: metadata.category,
-        coverImage: metadata.coverImage
+        coverImage
       })
       setPendingFile(null)
       setLibraryRefresh(prev => prev + 1)
@@ -1536,7 +1885,65 @@ export default function App() {
     finishAndGoToLibrary()
   }
 
+  // Último livro acessado para preencher o herói da home
+  const [lastRecentBook, setLastRecentBook] = useState(null)
+  const [heroRating, setHeroRating] = useState(0)
+
+  useEffect(() => {
+    if (!recentBooks?.length) {
+      setLastRecentBook(null)
+      setHeroRating(0)
+      return
+    }
+
+    const latest = recentBooks[0]
+
+    const loadMetadata = async () => {
+      let coverImage = null
+      let category = null
+      let extension = null
+      let addedAt = null
+      let rating = 0
+
+      if (latest.libraryId) {
+        const libraryBooks = await window.nreader?.listLibrary?.()
+        const meta = libraryBooks?.find((b) => b.id === latest.libraryId)
+        if (meta) {
+          coverImage = meta.coverImage || null
+          category = meta.category || null
+          extension = meta.extension || null
+          addedAt = meta.addedAt || null
+          rating = meta.rating || 0
+        }
+      }
+
+      setLastRecentBook({
+        ...latest,
+        coverImage,
+        category,
+        extension,
+        addedAt,
+        rating
+      })
+      setHeroRating(rating)
+    }
+
+    loadMetadata()
+  }, [recentBooks])
+
+  const handleHeroRatingChange = async (newRating) => {
+    if (!lastRecentBook?.libraryId) return
+    setHeroRating(newRating)
+    await window.nreader?.saveToLibrary?.({
+      id: lastRecentBook.libraryId,
+      rating: newRating
+    })
+    // refresh recent books to reflect rating if needed
+    setLibraryRefresh((v) => v + 1)
+  }
+
   const rootClassName = theme === 'dark' ? 'app dark' : 'app'
+  const pageClassName = docDarkMode ? 'page doc-dark' : 'page'
   const isLastPage = safePage >= pageCount - 1
   const nextLabel = isLastPage ? t.finish : t.next
 
@@ -1656,7 +2063,10 @@ export default function App() {
         </button>
       </aside>
 
-      <main className={`reader ${viewTransitionClass} ${isSidebarHidden ? 'sidebar-hidden' : ''} ${isFullscreen ? 'fullscreen' : ''}`.trim()}>
+      <main
+        ref={readerRef}
+        className={`reader ${viewTransitionClass} ${isSidebarHidden ? 'sidebar-hidden' : ''} ${isFullscreen ? 'fullscreen' : ''}`.trim()}
+      >
         {isLoadingFile ? (
           <div className="loading-overlay">
             <div className="loading-spinner"></div>
@@ -1672,22 +2082,65 @@ export default function App() {
             refreshKey={libraryRefresh}
           />
         ) : view === 'home' ? (
-          <div
-            className={`drop-zone ${isDragging ? 'dragging' : ''}`}
-            onDragEnter={handleDragEnter}
-            onDragLeave={handleDragLeave}
-            onDragOver={handleDragOver}
-            onDrop={handleDrop}
-          >
-            <div className="drop-content">
-              <div className="drop-icon">📚</div>
-              <h2>{t.dragBookHere}</h2>
-              <p className="muted">{t.supportedFormats}</p>
-            </div>
+          <div className="home-wrapper">
+            {lastRecentBook ? (
+              <>
+                <div className="home-hero-label">Visto por último</div>
+                <div className="home-hero">
+                <div className="home-hero-cover">
+                  {lastRecentBook.coverImage ? (
+                    <img src={lastRecentBook.coverImage} alt={lastRecentBook.title} />
+                  ) : (
+                    <div className="cover-placeholder hero">
+                      {(lastRecentBook.extension || lastRecentBook.filePath?.split('.').pop() || '?').replace('.', '').toUpperCase() || '?'}
+                    </div>
+                  )}
+                </div>
+                <div className="home-hero-info">
+                  <h2 className="truncate">{lastRecentBook.title}</h2>
+                  <p className="muted small">
+                    {t.lastRead} {lastRecentBook.lastAccessed ? new Date(lastRecentBook.lastAccessed).toLocaleDateString(language === 'pt' ? 'pt-BR' : 'en-US') : t.neverRead}
+                  </p>
+                  <p className="muted">{translateCategoryName(lastRecentBook.category, language) || t.noCategory}</p>
+                  <div className="hero-progress-row">
+                    <div className="hero-progress-bar">
+                      <div className="hero-progress-fill" style={{ width: `${lastRecentBook.percentage ?? 0}%` }} />
+                    </div>
+                    <span className="muted small">{lastRecentBook.percentage ?? 0}% {t.completed}</span>
+                  </div>
+                  <div className="hero-rating">
+                    <StarRating value={heroRating} onChange={handleHeroRatingChange} />
+                  </div>
+                  <div className="hero-actions">
+                    <button className="action-btn primary" onClick={() => handleOpenRecentBook(lastRecentBook)}>
+                      {t.continueReading}
+                    </button>
+                    <button className="action-btn secondary" onClick={() => changeView('library')}>
+                      {t.viewLibrary}
+                    </button>
+                  </div>
+                </div>
+                </div>
+              </>
+            ) : (
+              <div
+                className={`drop-zone ${isDragging ? 'dragging' : ''}`}
+                onDragEnter={handleDragEnter}
+                onDragLeave={handleDragLeave}
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+              >
+                <div className="drop-content">
+                  <div className="drop-icon">📚</div>
+                  <h2>{t.dragBookHere}</h2>
+                  <p className="muted">{t.supportedFormats}</p>
+                </div>
+              </div>
+            )}
           </div>
         ) : book ? (
           <>
-            <article ref={pageRef} className="page" style={{ fontSize: `${fontSize}px` }}>
+            <article ref={pageRef} className={pageClassName} style={{ fontSize: `${fontSize}px` }}>
               <div className="page-overlay-buttons">
                 <button 
                   className="overlay-button toggle-sidebar" 
@@ -1695,6 +2148,13 @@ export default function App() {
                   onClick={() => setIsSidebarHidden(!isSidebarHidden)}
                 >
                   {isSidebarHidden ? '☰' : '✕'}
+                </button>
+                <button
+                  className="overlay-button doc-dark-btn"
+                  title={docDarkMode ? t.docLight : t.docDark}
+                  onClick={toggleDocDarkMode}
+                >
+                  {docDarkMode ? '☀️' : '🌙'}
                 </button>
                 <button 
                   className="overlay-button fullscreen-btn" 
@@ -1708,6 +2168,20 @@ export default function App() {
                 >
                   {isFullscreen ? '⛶' : '⛶'}
                 </button>
+              </div>
+              <div className="page-nav-hotzones" aria-hidden="true">
+                <div
+                  className="hotzone left"
+                  onClick={() => {
+                    if (safePage > 0) goToPrevious()
+                  }}
+                />
+                <div
+                  className="hotzone right"
+                  onClick={() => {
+                    if (safePage < pageCount - 1) goToNext()
+                  }}
+                />
               </div>
               {book?.isPdf ? (
                 <PdfPage
@@ -1788,6 +2262,8 @@ export default function App() {
         onClose={() => setShowSettings(false)}
         language={language}
         onLanguageChange={handleLanguageChange}
+        onClearLibrary={handleClearLibrary}
+        onOpenLibraryFolder={handleOpenLibraryFolder}
       />
     </div>
   )

@@ -4,7 +4,7 @@
   "private": true,
   "main": "main.js",
   "scripts": {
-    "dev": "concurrently \"vite --strictPort --port 5173\" \"wait-on http://localhost:5173 && electron .\"",
+    "dev": "node scripts/clean-library.js && concurrently \"vite --strictPort --port 5174\" \"wait-on http://localhost:5174 && electron .\"",
     "build": "vite build",
     "start": "electron ."
   },
